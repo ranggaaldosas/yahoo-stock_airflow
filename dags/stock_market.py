@@ -4,9 +4,11 @@ import requests
 from airflow.decorators import dag, task
 from airflow.hooks.base import BaseHook
 from airflow.operators.python import PythonOperator
+from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.sensors.base import PokeReturnValue
+from include.stock_market.tasks import _stock_prices
 
-SYMBOL = "AAPL"  # for Apple Inc. stock
+SYMBOL = "aapl"
 
 
 @dag(
@@ -38,7 +40,31 @@ def stock_market():
         op_kwargs={"symbol": SYMBOL},
     )
 
-    is_api_available() >> get_stock_prices_task
+    stock_prices = PythonOperator(
+        task_id="stock_prices",
+        python_callable=_stock_prices,
+        op_kwargs={
+            "stock": '{{ task_instance.xcom_pull(task_ids="get_stock_prices") }}'
+        },
+    )
+
+    format_prices = DockerOperator(
+        task_id="format_prices",
+        image="airflow/stock-app",
+        container_name="format_prices",
+        api_version="auto",
+        auto_remove=True,
+        docker_url="tcp://docker-proxy:2375",
+        network_mode="container:spark-master",
+        tty=True,
+        xcom_all=False,
+        mount_tmp_dir=False,
+        environment={
+            "SPARK_APPLICATION_ARGS": '{{ task_instance.xcom_pull(task_ids="stock_prices") }}'
+        },
+    )
+
+    is_api_available() >> get_stock_prices_task >> stock_prices >> format_prices
 
 
 stock_market()
