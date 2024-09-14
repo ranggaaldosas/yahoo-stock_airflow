@@ -6,7 +6,10 @@ from airflow.hooks.base import BaseHook
 from airflow.operators.python import PythonOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.sensors.base import PokeReturnValue
-from include.stock_market.tasks import _get_formatted_csv, _stock_prices
+from astro import sql as aql
+from astro.files import File
+from astro.sql.table import Metadata, Table
+from include.stock_market.tasks import BUCKET_NAME, _get_formatted_csv, _stock_prices
 
 SYMBOL = "NVDA"
 
@@ -28,10 +31,9 @@ def stock_market():
 
     def get_stock_prices(symbol: str):
         api = BaseHook.get_connection("stock_api")
-        url = f"https://{api.host}{api.extra_dejson['endpoint']}{symbol}"
+        url = f"https://{api.host}{api.extra_dejson['endpoint']}{symbol}?interval=1d&range=2y"
         response = requests.get(url, headers=api.extra_dejson["headers"])
         data = response.json()
-        # Tambahkan logika untuk memproses data di sini
         return data
 
     get_stock_prices_task = PythonOperator(
@@ -70,12 +72,26 @@ def stock_market():
         op_kwargs={"path": '{{ task_instance.xcom_pull(task_ids="stock_prices") }}'},
     )
 
+    load_to_dw = aql.load_file(
+        task_id="load_to_dw",
+        input_file=File(
+            path=f"s3://{BUCKET_NAME}/{{{{ task_instance.xcom_pull(task_ids='get_formatted_csv') }}}}",
+            conn_id="minio",
+        ),
+        output_table=Table(
+            name="stock_market_nvda",
+            conn_id="postgres",
+            metadata=Metadata(schema="public"),
+        ),
+    )
+
     (
         is_api_available()
         >> get_stock_prices_task
         >> stock_prices
         >> format_prices
         >> get_formatted_csv
+        >> load_to_dw
     )
 
 
