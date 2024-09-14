@@ -5,6 +5,7 @@ from airflow.decorators import dag, task
 from airflow.hooks.base import BaseHook
 from airflow.operators.python import PythonOperator
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.providers.slack.notifications.slack import send_slack_notification
 from airflow.sensors.base import PokeReturnValue
 from astro import sql as aql
 from astro.files import File
@@ -19,6 +20,22 @@ SYMBOL = "NVDA"
     schedule_interval="@daily",
     catchup=False,
     tags=["stock_market"],
+    on_success_callback=[
+        send_slack_notification(
+            text="The DAG {{ dag.dag_id }} succeeded",
+            channel="#airflow-notifications",
+            username="Airflow",
+            slack_conn_id="slack",  # Ensure you have this connection set up
+        )
+    ],
+    on_failure_callback=[
+        send_slack_notification(
+            text="The DAG {{ dag.dag_id }} failed",
+            channel="#airflow-notifications",
+            username="Airflow",
+            slack_conn_id="slack",  # Ensure you have this connection set up
+        )
+    ],
 )
 def stock_market():
     @task.sensor(poke_interval=30, timeout=300, mode="poke")
