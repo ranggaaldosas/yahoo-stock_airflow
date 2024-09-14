@@ -6,9 +6,9 @@ from airflow.hooks.base import BaseHook
 from airflow.operators.python import PythonOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.sensors.base import PokeReturnValue
-from include.stock_market.tasks import _stock_prices
+from include.stock_market.tasks import _get_formatted_csv, _stock_prices
 
-SYMBOL = "aapl"
+SYMBOL = "NVDA"
 
 
 @dag(
@@ -64,7 +64,19 @@ def stock_market():
         },
     )
 
-    is_api_available() >> get_stock_prices_task >> stock_prices >> format_prices
+    get_formatted_csv = PythonOperator(
+        task_id="get_formatted_csv",
+        python_callable=_get_formatted_csv,
+        op_kwargs={"path": '{{ task_instance.xcom_pull(task_ids="stock_prices") }}'},
+    )
+
+    (
+        is_api_available()
+        >> get_stock_prices_task
+        >> stock_prices
+        >> format_prices
+        >> get_formatted_csv
+    )
 
 
 stock_market()
