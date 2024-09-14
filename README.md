@@ -1,17 +1,15 @@
-### Project ETL Stock IDX - Stream Processing
+### ETL Pipeline - NVIDIA Stock Performance : A Two-Year Review
 
-> End-to-end data pipeline with Extract-Load-Transform concept
 
 - **Data Stack**
   - Orchestration = Apache Airlow
-  - Connector = Airbyte
-  - Data Transformation = dbt
-  - OLAP/Data Warehouse = Google BigQuery
-  - Stream Processing = Google Pub/Sub
+  - Data Transformation = Apache Spark
+  - OLAP/Data Warehouse = Minio & PostgreSQL
+  - Dashboard = Metabase
 
 
 #### A. System Design
-![system_design](./assets/)
+![system_design](./assets/NVDA_yahoo_system_design)
 
 #### B. Airflow Graph
 ![flow](./assets/airflow_graph_stockmarket.png)
